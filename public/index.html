@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GKE — kubectl top monitor</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" defer></script>
+    <script src="/app.js" type="module" defer></script>
+  </head>
+  <body>
+    <header class="header">
+      <div>
+        <h1>kubectl top — live charts</h1>
+        <p class="sub">
+          Snapshots from <code>kubectl top nodes</code>, <code>kubectl top pods -n &lt;ns&gt;</code>, and
+          <code>kubectl get pods -n &lt;ns&gt;</code> (JSON), and
+          <code>kubectl get secrets -n &lt;ns&gt;</code>, and
+          <code>kubectl get svc -n &lt;ns&gt;</code>. History is kept in this server’s memory while it runs.
+        </p>
+      </div>
+      <div class="status" id="status" aria-live="polite">Starting…</div>
+    </header>
+
+    <section class="controls card">
+      <form id="ns-form" class="row">
+        <label for="namespace">Namespace</label>
+        <select id="namespace" name="namespace" required aria-describedby="namespace-hint">
+          <option value="">Loading namespaces…</option>
+        </select>
+        <button type="submit">Apply</button>
+      </form>
+      <p id="namespace-hint" class="namespace-hint muted">Namespaces from <code>kubectl get namespaces</code></p>
+      <div class="row range-row">
+        <span class="label">Time range</span>
+        <div class="segments" id="range-group" role="group" aria-label="Time range">
+          <button type="button" data-range="5m">5m</button>
+          <button type="button" data-range="15m" class="active">15m</button>
+          <button type="button" data-range="30m">30m</button>
+          <button type="button" data-range="1h">1h</button>
+          <button type="button" data-range="4h">4h</button>
+        </div>
+        <span class="hint">CPU &amp; memory charts: legend order = descending by latest value in the window</span>
+      </div>
+    </section>
+
+    <main class="grid">
+      <article class="card chart-card node-metric-chart zoomable-card" data-panel="nodes-cpu">
+        <div class="panel-head">
+          <h2>Nodes — CPU</h2>
+          <button type="button" class="panel-enlarge" title="Enlarge" aria-label="Enlarge chart">
+            <svg class="icon-enlarge" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+            </svg>
+          </button>
+        </div>
+        <div id="panel-body-nodes-cpu" class="panel-body">
+          <canvas id="chart-nodes-cpu" height="120"></canvas>
+        </div>
+      </article>
+      <article class="card chart-card node-metric-chart zoomable-card" data-panel="nodes-mem">
+        <div class="panel-head">
+          <h2>Nodes — memory</h2>
+          <button type="button" class="panel-enlarge" title="Enlarge" aria-label="Enlarge chart">
+            <svg class="icon-enlarge" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+            </svg>
+          </button>
+        </div>
+        <div id="panel-body-nodes-mem" class="panel-body">
+          <canvas id="chart-nodes-mem" height="120"></canvas>
+        </div>
+      </article>
+      <article class="card chart-card zoomable-card" data-panel="pods-cpu">
+        <div class="panel-head">
+          <h2>Pods — CPU (millicores)</h2>
+          <button type="button" class="panel-enlarge" title="Enlarge" aria-label="Enlarge chart">
+            <svg class="icon-enlarge" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+            </svg>
+          </button>
+        </div>
+        <div id="panel-body-pods-cpu" class="panel-body">
+          <canvas id="chart-pods-cpu" height="120"></canvas>
+        </div>
+      </article>
+      <article class="card chart-card zoomable-card" data-panel="pods-mem">
+        <div class="panel-head">
+          <h2>Pods — memory (MiB)</h2>
+          <button type="button" class="panel-enlarge" title="Enlarge" aria-label="Enlarge chart">
+            <svg class="icon-enlarge" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+            </svg>
+          </button>
+        </div>
+        <div id="panel-body-pods-mem" class="panel-body">
+          <canvas id="chart-pods-mem" height="120"></canvas>
+        </div>
+      </article>
+      <article class="card chart-card zoomable-card" data-panel="pods-phase">
+        <div class="panel-head">
+          <h2>Pods — phase counts (<code>kubectl get pods</code>) + total restarts</h2>
+          <button type="button" class="panel-enlarge" title="Enlarge" aria-label="Enlarge chart">
+            <svg class="icon-enlarge" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+            </svg>
+          </button>
+        </div>
+        <div id="panel-body-pods-phase" class="panel-body">
+          <canvas id="chart-get-pods" height="140"></canvas>
+        </div>
+      </article>
+      <article class="card secrets-card zoomable-card" data-panel="secrets">
+        <div class="panel-head secrets-panel-head">
+          <div class="panel-head-main">
+            <h2>Secrets (<code>kubectl get secrets</code>)</h2>
+            <p class="secrets-meta muted" id="secrets-meta"></p>
+          </div>
+          <button type="button" class="panel-enlarge" title="Enlarge" aria-label="Enlarge secrets output">
+            <svg class="icon-enlarge" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+            </svg>
+          </button>
+        </div>
+        <div id="panel-body-secrets" class="panel-body">
+          <pre id="secrets-output" class="kubectl-output secrets-output" aria-label="kubectl get secrets output">—</pre>
+        </div>
+      </article>
+      <article class="card services-card chart-span-full zoomable-card" data-panel="services">
+        <div class="panel-head services-panel-head">
+          <div class="panel-head-main">
+            <h2>Services (<code>kubectl get svc</code>)</h2>
+            <p class="services-meta muted" id="services-meta"></p>
+          </div>
+          <div class="panel-head-actions">
+            <button type="button" id="services-copy-btn" class="copy-output-btn" title="Copy all output to clipboard">
+              Copy all
+            </button>
+            <button type="button" class="panel-enlarge" title="Enlarge" aria-label="Enlarge services output">
+              <svg class="icon-enlarge" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <p class="copy-hint muted">Select any text below to copy, or use Copy all.</p>
+        <div id="panel-body-services" class="panel-body">
+          <pre id="services-output" class="kubectl-output copyable-output services-output" tabindex="0" aria-label="kubectl get services output">—</pre>
+        </div>
+      </article>
+      <article class="card pod-table-card chart-span-full zoomable-card" data-panel="pod-table">
+        <div class="panel-head pod-table-panel-head">
+          <div class="panel-head-main">
+            <h2>Pods — name &amp; status</h2>
+            <p class="pod-table-meta muted" id="pod-table-meta"></p>
+          </div>
+          <button type="button" class="panel-enlarge" title="Enlarge" aria-label="Enlarge table">
+            <svg class="icon-enlarge" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+            </svg>
+          </button>
+        </div>
+        <div id="panel-body-pod-table" class="panel-body">
+          <div class="table-wrap">
+            <table class="pod-table" aria-label="Pods in namespace">
+              <thead>
+                <tr>
+                  <th scope="col">Name</th>
+                  <th scope="col">Phase</th>
+                  <th scope="col">Ready</th>
+                  <th scope="col">Status</th>
+                  <th scope="col" class="num">Restarts</th>
+                </tr>
+              </thead>
+              <tbody id="pod-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+    </main>
+
+    <div id="pod-action-menu" class="pod-action-menu" role="menu" hidden></div>
+
+    <div id="modal-describe-backdrop" class="kubectl-modal-backdrop" hidden>
+      <div class="kubectl-modal-dialog card" role="dialog" aria-modal="true" aria-labelledby="describe-modal-title">
+        <div class="kubectl-modal-toolbar">
+          <h2 id="describe-modal-title" class="kubectl-modal-title">Describe pod</h2>
+          <button type="button" class="kubectl-modal-close" data-modal-close="describe" aria-label="Close">×</button>
+        </div>
+        <pre id="describe-output" class="kubectl-output"></pre>
+        <p id="describe-error" class="kubectl-modal-error muted" hidden></p>
+        <div class="kubectl-modal-footer">
+          <button type="button" data-modal-close="describe">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-logs-backdrop" class="kubectl-modal-backdrop" hidden>
+      <div class="kubectl-modal-dialog card kubectl-modal-wide" role="dialog" aria-modal="true" aria-labelledby="logs-modal-title">
+        <div class="kubectl-modal-toolbar">
+          <h2 id="logs-modal-title" class="kubectl-modal-title">Pod logs</h2>
+          <div class="kubectl-modal-toolbar-actions">
+            <button type="button" id="logs-stop-btn" class="logs-stop-btn">Stop streaming</button>
+            <button type="button" class="kubectl-modal-close" data-modal-close="logs" aria-label="Close">×</button>
+          </div>
+        </div>
+        <div class="logs-controls">
+          <div class="logs-control-group">
+            <label for="logs-container-select">Container</label>
+            <select id="logs-container-select" aria-describedby="logs-container-hint"></select>
+            <span id="logs-container-hint" class="logs-hint muted">Pick one container, or enable “All containers”.</span>
+          </div>
+          <label class="logs-all-check">
+            <input type="checkbox" id="logs-all-containers" />
+            All containers
+          </label>
+          <button type="button" id="logs-start-btn" class="logs-start-btn">Stream logs</button>
+        </div>
+        <pre id="logs-output" class="kubectl-output kubectl-logs-output"></pre>
+        <p id="logs-error" class="kubectl-modal-error muted" hidden></p>
+      </div>
+    </div>
+
+    <div id="modal-delete-backdrop" class="kubectl-modal-backdrop" hidden>
+      <div class="kubectl-modal-dialog card kubectl-modal-narrow" role="alertdialog" aria-modal="true" aria-labelledby="delete-modal-title">
+        <h2 id="delete-modal-title" class="kubectl-modal-title">Delete pod</h2>
+        <p class="delete-confirm-text">
+          Delete pod <strong id="delete-pod-name"></strong> in namespace <strong id="delete-pod-ns"></strong>? This cannot be undone.
+        </p>
+        <div class="delete-confirm-actions">
+          <button type="button" id="delete-yes-btn" class="btn-delete-yes">YES</button>
+          <button type="button" id="delete-no-btn" class="btn-delete-no">NO</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="chart-zoom-backdrop" class="chart-zoom-backdrop" hidden>
+      <div class="chart-zoom-dialog card" role="dialog" aria-modal="true" aria-labelledby="chart-zoom-title">
+        <div class="chart-zoom-toolbar">
+          <h2 id="chart-zoom-title" class="chart-zoom-title">Chart</h2>
+          <button type="button" id="chart-zoom-close" class="chart-zoom-close">Back to layout</button>
+        </div>
+        <div id="chart-zoom-slot" class="chart-zoom-slot"></div>
+      </div>
+    </div>
+  </body>
+</html>
